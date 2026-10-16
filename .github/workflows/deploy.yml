@@ -34,66 +34,93 @@ jobs:
 
       - name: Install NPM Dependencies & Build Assets (Vite)
         run: |
-          npm ci || npm install
+          npm ci
           npm run build
 
-      - name: Deploy to Namecheap via Rsync over SSH
-        uses: easingthemes/ssh-deploy@v5.1.0
-        with:
-          SSH_PRIVATE_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
-          ARGS: "-rlgoDzvc -i --delete"
-          SOURCE: "/"
-          REMOTE_HOST: ${{ secrets.NAMECHEAP_HOST }}
-          REMOTE_USER: ${{ secrets.NAMECHEAP_USERNAME }}
-          REMOTE_PORT: ${{ secrets.NAMECHEAP_PORT || '21098' }}
-          TARGET: /home/${{ secrets.NAMECHEAP_USERNAME }}/public_html
-          EXCLUDE: |
-            .git/
-            .github/
-            node_modules/
-            .env
-            .env.*
-            storage/*.key
-            storage/logs/
-            storage/framework/cache/
-            storage/framework/sessions/
-            storage/framework/views/
-            tests/
-            phpunit.xml
-            .phpunit.result.cache
+      - name: Prepare SSH Key & Known Hosts
+        env:
+          SSH_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
+          SSH_HOST: ${{ secrets.NAMECHEAP_HOST }}
+          SSH_PORT: ${{ secrets.NAMECHEAP_PORT || '21098' }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Write the private key. printf '%b' converts literal "\n" sequences
+          # into real newlines (the usual cause of "error in libcrypto"),
+          # and tr strips any Windows CR characters.
+          printf '%b' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          printf '\n' >> ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Fail fast with a clear message if the key is not a valid OpenSSH key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::NAMECHEAP_SSH_KEY is not a valid OpenSSH PRIVATE key. It must start with '-----BEGIN ... PRIVATE KEY-----'. Check that newlines are preserved and that you pasted the private key (not the .pub file or a PuTTY .ppk)."
+            exit 1
+          fi
+          echo "✅ SSH private key is valid"
+
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy Code via Rsync
+        env:
+          SSH_HOST: ${{ secrets.NAMECHEAP_HOST }}
+          SSH_USER: ${{ secrets.NAMECHEAP_USERNAME }}
+          SSH_PORT: ${{ secrets.NAMECHEAP_PORT || '21098' }}
+        run: |
+          rsync -rlgoDzvc --delete \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'node_modules/' \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            --exclude 'storage/*.key' \
+            --exclude 'storage/logs/' \
+            --exclude 'storage/framework/cache/' \
+            --exclude 'storage/framework/sessions/' \
+            --exclude 'storage/framework/views/' \
+            --exclude 'tests/' \
+            --exclude 'phpunit.xml' \
+            --exclude '.phpunit.result.cache' \
+            -e "ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes" \
+            ./ "$SSH_USER@$SSH_HOST:/home/$SSH_USER/public_html"
 
       - name: Execute Post-Deployment Commands on Server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.NAMECHEAP_HOST }}
-          username: ${{ secrets.NAMECHEAP_USERNAME }}
-          key: ${{ secrets.NAMECHEAP_SSH_KEY }}
-          port: ${{ secrets.NAMECHEAP_PORT || '21098' }}
-          script_stop: true
-          script: |
-            cd /home/${{ secrets.NAMECHEAP_USERNAME }}/public_html
+        env:
+          SSH_HOST: ${{ secrets.NAMECHEAP_HOST }}
+          SSH_USER: ${{ secrets.NAMECHEAP_USERNAME }}
+          SSH_PORT: ${{ secrets.NAMECHEAP_PORT || '21098' }}
+        run: |
+          ssh -p "$SSH_PORT" -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes "$SSH_USER@$SSH_HOST" "cd /home/$SSH_USER/public_html && bash -s" <<'REMOTE_SCRIPT'
+          set -e
 
-            # Detect PHP CLI on Namecheap (uses ea-php82 or default php)
-            if [ -f "/usr/local/bin/ea-php82" ]; then
-              PHP_BIN="/usr/local/bin/ea-php82"
-            elif [ -f "/usr/local/bin/ea-php81" ]; then
-              PHP_BIN="/usr/local/bin/ea-php81"
-            else
-              PHP_BIN="php"
-            fi
+          # Detect PHP CLI on Namecheap (uses ea-php82 or default php)
+          if [ -f "/usr/local/bin/ea-php82" ]; then
+            PHP_BIN="/usr/local/bin/ea-php82"
+          elif [ -f "/usr/local/bin/ea-php81" ]; then
+            PHP_BIN="/usr/local/bin/ea-php81"
+          else
+            PHP_BIN="php"
+          fi
 
-            echo "Using PHP binary: $PHP_BIN"
+          echo "Using PHP binary: $PHP_BIN"
 
-            # Create storage symlink if missing
-            $PHP_BIN artisan storage:link || true
+          # Ensure writable runtime directories exist
+          mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+          chmod -R 775 storage bootstrap/cache || true
 
-            # Run database migrations
-            $PHP_BIN artisan migrate --force
+          # Create storage symlink if missing
+          $PHP_BIN artisan storage:link || true
 
-            # Optimize cache
-            $PHP_BIN artisan optimize:clear
-            $PHP_BIN artisan config:cache
-            $PHP_BIN artisan route:cache
-            $PHP_BIN artisan view:cache
+          # Run database migrations
+          $PHP_BIN artisan migrate --force
 
-            echo "Deployment completed successfully!"
+          # Optimize cache
+          $PHP_BIN artisan optimize:clear
+          $PHP_BIN artisan config:cache
+          $PHP_BIN artisan route:cache
+          $PHP_BIN artisan view:cache
+
+          echo "Deployment completed successfully!"
+          REMOTE_SCRIPT
