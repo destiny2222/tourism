@@ -5,9 +5,9 @@
 @endsection
 @section('content')
     @section('breadcrumb', 'About Us')
-    <!-- breadcrumb-area -->
+    <!-- breadcrumb area -->
         @include('partials.breadcrumb-area')
-    <!-- breadcrumb-area-end -->
+    <!-- breadcrumb arean end -->
 
     <!-- about area start -->
     <section class="about__area pt-120 pb-120 p-relative">
