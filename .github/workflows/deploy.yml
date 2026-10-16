@@ -3,8 +3,7 @@ name: Deploy Laravel to Namecheap cPanel
 on:
   push:
     branches:
-      - main
-  workflow_dispatch:
+      - main  # Change to master if your primary branch is master
 
 jobs:
   deploy:
@@ -31,19 +30,19 @@ jobs:
 
       - name: Install NPM Dependencies & Build Assets
         run: |
-          npm ci || npm install
+          npm ci
           npm run build
 
       - name: Sync files via Rsync over SSH
-        uses: easingthemes/ssh-deploy@v5.1.0
-        with:
+        uses: easingthemes/ssh-deploy@v5.0.0
+        env:
           SSH_PRIVATE_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
           ARGS: "-rlptgoDzK --delete"
           SOURCE: "/"
           REMOTE_HOST: ${{ secrets.NAMECHEAP_HOST }}
           REMOTE_USER: ${{ secrets.NAMECHEAP_USERNAME }}
           REMOTE_PORT: ${{ secrets.NAMECHEAP_PORT }}
-          TARGET: "/home/${{ secrets.NAMECHEAP_USERNAME }}/public_html"
+          TARGET: "/home/${{ secrets.NAMECHEAP_USERNAME }}/public_html"  # Destination folder on cPanel
           EXCLUDE: "/.git/, /.github/, /storage/framework/cache/, /storage/logs/, /.env, /node_modules/"
 
       - name: Run Remote Artisan Commands
@@ -55,8 +54,7 @@ jobs:
           port: ${{ secrets.NAMECHEAP_PORT }}
           script: |
             cd /home/${{ secrets.NAMECHEAP_USERNAME }}/public_html
-            php artisan migrate --force
+            php artisan migrate --force 
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
-
