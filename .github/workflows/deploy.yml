@@ -44,13 +44,7 @@ jobs:
           REMOTE_USER: ${{ secrets.NAMECHEAP_USERNAME }}
           REMOTE_PORT: ${{ secrets.NAMECHEAP_PORT }}
           TARGET: "/home/${{ secrets.NAMECHEAP_USERNAME }}/public_html"
-          EXCLUDES: |
-            /.git/
-            /.github/
-            /storage/framework/cache/
-            /storage/logs/
-            /.env
-            /node_modules/
+          EXCLUDE: "/.git/, /.github/, /storage/framework/cache/, /storage/logs/, /.env, /node_modules/"
 
       - name: Run Remote Artisan Commands
         uses: appleboy/ssh-action@v1.0.3
