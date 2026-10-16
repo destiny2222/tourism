@@ -1,126 +1,61 @@
-name: Deploy to Namecheap via SSH
+name: Deploy Laravel to Namecheap cPanel
 
 on:
   push:
     branches:
-      - main
-  workflow_dispatch:
+      - main  # Change to master if your primary branch is master
 
 jobs:
   deploy:
-    name: Build & Deploy to Namecheap
+    name: Deploy to Namecheap
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup PHP
+      - name: Setup PHP Environment
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, bcmath, gd, zip
-          coverage: none
+          extensions: mbstring, dom, fileinfo, gd, curl, pdo, pdo_mysql
 
       - name: Install Composer Dependencies
-        run: |
-          composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction
+        run: composer install --no-dev --optimize-autoloader --no-progress --prefer-dist
 
-      - name: Setup Node.js
+      - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Install NPM Dependencies & Build Assets (Vite)
+      - name: Install NPM Dependencies & Build Assets
         run: |
           npm ci
           npm run build
 
-      - name: Prepare SSH Key & Known Hosts
+      - name: Sync files via Rsync over SSH
+        uses: easingthemes/ssh-deploy@v5.0.0
         env:
-          SSH_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
-          SSH_HOST: ${{ secrets.NAMECHEAP_HOST }}
-          SSH_PORT: ${{ secrets.NAMECHEAP_PORT || '21098' }}
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
+          SSH_PRIVATE_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
+          ARGS: "-rlptgoDzK --delete"
+          SOURCE: "/"
+          REMOTE_HOST: ${{ secrets.NAMECHEAP_HOST }}
+          REMOTE_USER: ${{ secrets.NAMECHEAP_USERNAME }}
+          REMOTE_PORT: ${{ secrets.NAMECHEAP_PORT }}
+          TARGET: "/home/${{ secrets.NAMECHEAP_USERNAME }}/public_html"  # Destination folder on cPanel
+          EXCLUDE: "/.git/, /.github/, /storage/framework/cache/, /storage/logs/, /.env, /node_modules/"
 
-          # Write the private key. printf '%b' converts literal "\n" sequences
-          # into real newlines (the usual cause of "error in libcrypto"),
-          # and tr strips any Windows CR characters.
-          printf '%b' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
-          printf '\n' >> ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-
-          # Fail fast with a clear message if the key is not a valid OpenSSH key
-          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
-            echo "::error::NAMECHEAP_SSH_KEY is not a valid OpenSSH PRIVATE key. It must start with '-----BEGIN ... PRIVATE KEY-----'. Check that newlines are preserved and that you pasted the private key (not the .pub file or a PuTTY .ppk)."
-            exit 1
-          fi
-          echo "✅ SSH private key is valid"
-
-          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          chmod 644 ~/.ssh/known_hosts
-
-      - name: Deploy Code via Rsync
-        env:
-          SSH_HOST: ${{ secrets.NAMECHEAP_HOST }}
-          SSH_USER: ${{ secrets.NAMECHEAP_USERNAME }}
-          SSH_PORT: ${{ secrets.NAMECHEAP_PORT || '21098' }}
-        run: |
-          rsync -rlgoDzvc --delete \
-            --exclude '.git/' \
-            --exclude '.github/' \
-            --exclude 'node_modules/' \
-            --exclude '.env' \
-            --exclude '.env.*' \
-            --exclude 'storage/*.key' \
-            --exclude 'storage/logs/' \
-            --exclude 'storage/framework/cache/' \
-            --exclude 'storage/framework/sessions/' \
-            --exclude 'storage/framework/views/' \
-            --exclude 'tests/' \
-            --exclude 'phpunit.xml' \
-            --exclude '.phpunit.result.cache' \
-            -e "ssh -p $SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes" \
-            ./ "$SSH_USER@$SSH_HOST:/home/$SSH_USER/public_html"
-
-      - name: Execute Post-Deployment Commands on Server
-        env:
-          SSH_HOST: ${{ secrets.NAMECHEAP_HOST }}
-          SSH_USER: ${{ secrets.NAMECHEAP_USERNAME }}
-          SSH_PORT: ${{ secrets.NAMECHEAP_PORT || '21098' }}
-        run: |
-          ssh -p "$SSH_PORT" -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes "$SSH_USER@$SSH_HOST" "cd /home/$SSH_USER/public_html && bash -s" <<'REMOTE_SCRIPT'
-          set -e
-
-          # Detect PHP CLI on Namecheap (uses ea-php82 or default php)
-          if [ -f "/usr/local/bin/ea-php82" ]; then
-            PHP_BIN="/usr/local/bin/ea-php82"
-          elif [ -f "/usr/local/bin/ea-php81" ]; then
-            PHP_BIN="/usr/local/bin/ea-php81"
-          else
-            PHP_BIN="php"
-          fi
-
-          echo "Using PHP binary: $PHP_BIN"
-
-          # Ensure writable runtime directories exist
-          mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
-          chmod -R 775 storage bootstrap/cache || true
-
-          # Create storage symlink if missing
-          $PHP_BIN artisan storage:link || true
-
-          # Run database migrations
-          $PHP_BIN artisan migrate --force
-
-          # Optimize cache
-          $PHP_BIN artisan optimize:clear
-          $PHP_BIN artisan config:cache
-          $PHP_BIN artisan route:cache
-          $PHP_BIN artisan view:cache
-
-          echo "Deployment completed successfully!"
-          REMOTE_SCRIPT
+      - name: Run Remote Artisan Commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.NAMECHEAP_HOST }}
+          username: ${{ secrets.NAMECHEAP_USERNAME }}
+          key: ${{ secrets.NAMECHEAP_SSH_KEY }}
+          port: ${{ secrets.NAMECHEAP_PORT }}
+          script: |
+            cd /home/${{ secrets.NAMECHEAP_USERNAME }}/public_html
+            php artisan migrate --force
+            php artisan db:seed --class=AgentPropertyListingSeeder --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
