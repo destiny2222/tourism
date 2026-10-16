@@ -9,7 +9,6 @@
         @include('partials.breadcrumb-area')
     <!-- breadcrumb-area-end -->
 
-
     <!-- about area start -->
     <section class="about__area pt-120 pb-120 p-relative">
         <div class="container">
