@@ -13,16 +13,18 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('adtea_inquiries', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->string('email')->nullable();
-            $table->string('phone')->nullable();
-            $table->string('type')->nullable();
-            $table->text('message')->nullable();
-            $table->string('status')->default('pending');
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('adtea_inquiries')) {
+            Schema::create('adtea_inquiries', function (Blueprint $table) {
+                $table->id();
+                $table->string('name')->nullable();
+                $table->string('email')->nullable();
+                $table->string('phone')->nullable();
+                $table->string('type')->nullable();
+                $table->text('message')->nullable();
+                $table->string('status')->default('pending');
+                $table->timestamps();
+            });
+        }
     }
 
     /**

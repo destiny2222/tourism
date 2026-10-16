@@ -11,15 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-      
-        Schema::create('votes', function (Blueprint $table) {
-            $table->id();
-            $table->string('email')->unique();
-            $table->foreignId('contestant_id')->constrained('contestants')->onDelete('cascade');
-            $table->string('transaction_reference')->unique();
-            $table->timestamp('voted_at')->useCurrent();
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('votes')) {
+            Schema::create('votes', function (Blueprint $table) {
+                $table->id();
+                $table->string('email')->unique();
+                $table->foreignId('contestant_id')->constrained('contestants')->onDelete('cascade');
+                $table->string('transaction_reference')->unique();
+                $table->timestamp('voted_at')->useCurrent();
+                $table->timestamps();
+            });
+        }
     }
 
     /**

@@ -11,20 +11,22 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('contestants', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('institution');
-            $table->string('slug')->unique();
-            $table->string('photo')->nullable();
-            $table->string('country')->nullable();
-            $table->string('department')->nullable();
-            $table->string('career')->nullable();
-            $table->string('unique_id')->unique();
-            $table->integer('votes')->default(0);
-            $table->text('description')->nullable();
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('contestants')) {
+            Schema::create('contestants', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->string('institution');
+                $table->string('slug')->unique();
+                $table->string('photo')->nullable();
+                $table->string('country')->nullable();
+                $table->string('department')->nullable();
+                $table->string('career')->nullable();
+                $table->string('unique_id')->unique();
+                $table->integer('votes')->default(0);
+                $table->text('description')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     /**
