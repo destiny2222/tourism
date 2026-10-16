@@ -3,7 +3,8 @@ name: Deploy Laravel to Namecheap cPanel
 on:
   push:
     branches:
-      - main  # Change to master if your primary branch is master
+      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -30,20 +31,26 @@ jobs:
 
       - name: Install NPM Dependencies & Build Assets
         run: |
-          npm ci
+          npm ci || npm install
           npm run build
 
       - name: Sync files via Rsync over SSH
-        uses: easingthemes/ssh-deploy@v5.0.0
-        env:
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
           SSH_PRIVATE_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
           ARGS: "-rlptgoDzK --delete"
           SOURCE: "/"
           REMOTE_HOST: ${{ secrets.NAMECHEAP_HOST }}
           REMOTE_USER: ${{ secrets.NAMECHEAP_USERNAME }}
           REMOTE_PORT: ${{ secrets.NAMECHEAP_PORT }}
-          TARGET: "/home/${{ secrets.NAMECHEAP_USERNAME }}/public_html"  # Destination folder on cPanel
-          EXCLUDE: "/.git/, /.github/, /storage/framework/cache/, /storage/logs/, /.env, /node_modules/"
+          TARGET: "/home/${{ secrets.NAMECHEAP_USERNAME }}/public_html"
+          EXCLUDES: |
+            /.git/
+            /.github/
+            /storage/framework/cache/
+            /storage/logs/
+            /.env
+            /node_modules/
 
       - name: Run Remote Artisan Commands
         uses: appleboy/ssh-action@v1.0.3
@@ -55,7 +62,7 @@ jobs:
           script: |
             cd /home/${{ secrets.NAMECHEAP_USERNAME }}/public_html
             php artisan migrate --force
-            php artisan db:seed --class=AgentPropertyListingSeeder --force
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+
