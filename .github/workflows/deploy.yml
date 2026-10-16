@@ -36,24 +36,24 @@ jobs:
       - name: Sync files via Rsync over SSH
         uses: easingthemes/ssh-deploy@v5.0.0
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.NAMECHEAP_SSH_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.NAMECHEAP_SSH_KEY || secrets.SSH_KEY }}
           ARGS: "-rlptgoDzK --delete"
           SOURCE: "/"
-          REMOTE_HOST: ${{ secrets.NAMECHEAP_HOST }}
-          REMOTE_USER: ${{ secrets.NAMECHEAP_USERNAME }}
-          REMOTE_PORT: ${{ secrets.NAMECHEAP_PORT }}
-          TARGET: "/home/${{ secrets.NAMECHEAP_USERNAME }}/public_html"
+          REMOTE_HOST: ${{ secrets.NAMECHEAP_HOST || secrets.SSH_HOST }}
+          REMOTE_USER: ${{ secrets.NAMECHEAP_USERNAME || secrets.SSH_USERNAME }}
+          REMOTE_PORT: ${{ secrets.NAMECHEAP_PORT || secrets.SSH_PORT || '21098' }}
+          TARGET: "/home/${{ secrets.NAMECHEAP_USERNAME || secrets.SSH_USERNAME }}/public_html"
           EXCLUDE: "/.git/, /.github/, /storage/framework/cache/, /storage/logs/, /.env, /node_modules/"
 
       - name: Run Remote Artisan Commands
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.NAMECHEAP_HOST }}
-          username: ${{ secrets.NAMECHEAP_USERNAME }}
-          key: ${{ secrets.NAMECHEAP_SSH_KEY }}
-          port: ${{ secrets.NAMECHEAP_PORT }}
+          host: ${{ secrets.NAMECHEAP_HOST || secrets.SSH_HOST }}
+          username: ${{ secrets.NAMECHEAP_USERNAME || secrets.SSH_USERNAME }}
+          key: ${{ secrets.NAMECHEAP_SSH_KEY || secrets.SSH_KEY }}
+          port: ${{ secrets.NAMECHEAP_PORT || secrets.SSH_PORT || '21098' }}
           script: |
-            cd /home/${{ secrets.NAMECHEAP_USERNAME }}/public_html
+            cd /home/${{ secrets.NAMECHEAP_USERNAME || secrets.SSH_USERNAME }}/public_html
             php artisan migrate --force 
             php artisan config:cache
             php artisan route:cache
