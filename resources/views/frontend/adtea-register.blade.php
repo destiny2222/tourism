@@ -333,24 +333,12 @@
             <p class="lead mx-auto" style="max-width: 720px; font-size: 1.05rem; line-height: 1.7;">
                 The 2026 Airport Drivers Tourism Education Summit — 1st December 2026 at the Lagos International Airport. Airport drivers, tourism &amp; hospitality stakeholders and general attendees all register here.
             </p>
-            <div class="adtea-reg-hero-facts">
-                <span><i class="fas fa-calendar-alt"></i> 1st December 2026</span>
-                <span><i class="fas fa-map-marker-alt"></i> Lagos International Airport</span>
-                <span><i class="fas fa-users"></i> 300+ Frontline Operators</span>
-                <span><i class="fas fa-graduation-cap"></i> Tourism Education Summit</span>
-            </div>
+  
         </div>
     </div>
 
     <!-- Registration Form (shared partial) -->
     <div class="adtea-reg-body">
-        <div class="container">
-            <div class="mb-3 text-center">
-                <a href="{{ route('adtea-page') }}" class="adtea-reg-back-link">
-                    <i class="fas fa-arrow-left"></i> Back to the ADTEA 2026 overview
-                </a>
-            </div>
-        </div>
         @include('frontend.partials.adtea-registration-form', ['registrationFormSource' => 'register'])
     </div>
 
@@ -361,9 +349,8 @@
                 <div class="col-xl-9 col-lg-10">
                     <div class="adtea-partner-card text-center position-relative">
                         <div class="position-relative" style="z-index: 2;">
-                            <span class="adtea-partner-badge">
-                                <i class="fas fa-handshake"></i> Corporate &amp; Brand Partnership
-                            </span>
+                            
+                            
                             <h3 class="adtea-partner-title">
                                 Want to Sponsor or Partner with <span class="highlight">ADTEA 2026</span>?
                             </h3>
